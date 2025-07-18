@@ -1,6 +1,7 @@
 """FastMCP server for OpenTelemetry Query Server."""
 
 import asyncio
+import os
 import signal
 import sys
 from typing import Any, Dict, List, Optional
@@ -112,7 +113,155 @@ class OTelQueryServer:
                 "cache": cache.get_stats() if cache else {"enabled": False}
             }
         
-        self.logger.info("Registered MCP tools", tools=["get_server_info"])
+        # Store driver reference for tools
+        drivers = self.drivers
+        
+        @self.mcp.tool()
+        async def search_traces(
+            service_name: Optional[str] = None,
+            operation_name: Optional[str] = None,
+            min_duration_ms: Optional[int] = None,
+            error_only: bool = False,
+            time_range_minutes: int = 60,
+            limit: int = 100
+        ) -> Dict[str, Any]:
+            """Search for distributed traces across configured backends.
+            
+            Args:
+                service_name: Filter by service name
+                operation_name: Filter by operation/span name
+                min_duration_ms: Minimum trace duration in milliseconds
+                error_only: Only return traces with errors
+                time_range_minutes: How far back to search (default: 60 minutes)
+                limit: Maximum number of traces to return
+            
+            Returns:
+                Dictionary containing traces and metadata
+            """
+            from datetime import datetime, timedelta
+            from otel_query_server.models import TraceSearchParams, TimeRange
+            
+            if not drivers:
+                return {"error": "No backend drivers configured"}
+            
+            # Build search parameters
+            now = datetime.utcnow()
+            params = TraceSearchParams(
+                service_name=service_name,
+                operation_name=operation_name,
+                min_duration_ms=min_duration_ms,
+                error_only=error_only,
+                time_range=TimeRange(
+                    start=now - timedelta(minutes=time_range_minutes),
+                    end=now
+                ),
+                limit=limit
+            )
+            
+            # Search in the first available driver
+            for driver_name, driver in drivers.items():
+                try:
+                    response = await driver.search_traces(params)
+                    return {
+                        "backend": driver_name,
+                        "traces": [trace.model_dump() for trace in response.traces],
+                        "total_count": response.total_count,
+                        "has_more": response.has_more
+                    }
+                except Exception as e:
+                    logger.error(f"Error searching traces in {driver_name}", error=str(e))
+            
+            return {"error": "Failed to search traces in all backends"}
+        
+        @self.mcp.tool()
+        async def search_logs(
+            service_name: Optional[str] = None,
+            level: Optional[str] = None,
+            query: Optional[str] = None,
+            trace_id: Optional[str] = None,
+            time_range_minutes: int = 60,
+            limit: int = 100
+        ) -> Dict[str, Any]:
+            """Search for logs across configured backends.
+            
+            Args:
+                service_name: Filter by service name
+                level: Log level (ERROR, WARN, INFO, DEBUG)
+                query: Text search query
+                trace_id: Filter by trace ID
+                time_range_minutes: How far back to search (default: 60 minutes)
+                limit: Maximum number of logs to return
+            
+            Returns:
+                Dictionary containing logs and metadata
+            """
+            from datetime import datetime, timedelta
+            from otel_query_server.models import LogSearchParams, TimeRange
+            
+            if not drivers:
+                return {"error": "No backend drivers configured"}
+            
+            # Build search parameters
+            now = datetime.utcnow()
+            params = LogSearchParams(
+                service_name=service_name,
+                level=level,
+                query=query,
+                trace_id=trace_id,
+                time_range=TimeRange(
+                    start=now - timedelta(minutes=time_range_minutes),
+                    end=now
+                ),
+                limit=limit
+            )
+            
+            # Search in the first available driver
+            for driver_name, driver in drivers.items():
+                try:
+                    response = await driver.search_logs(params)
+                    return {
+                        "backend": driver_name,
+                        "logs": [log.model_dump() for log in response.logs],
+                        "total_count": response.total_count,
+                        "has_more": response.has_more
+                    }
+                except Exception as e:
+                    logger.error(f"Error searching logs in {driver_name}", error=str(e))
+            
+            return {"error": "Failed to search logs in all backends"}
+        
+        @self.mcp.tool()
+        async def get_service_health(service_name: str) -> Dict[str, Any]:
+            """Get health status for a specific service.
+            
+            Args:
+                service_name: Name of the service to check
+            
+            Returns:
+                Dictionary containing service health information
+            """
+            if not drivers:
+                return {"error": "No backend drivers configured"}
+            
+            # Get health from the first available driver
+            for driver_name, driver in drivers.items():
+                try:
+                    health = await driver.get_service_health(service_name)
+                    return {
+                        "backend": driver_name,
+                        "health": health.model_dump()
+                    }
+                except Exception as e:
+                    logger.error(f"Error getting service health from {driver_name}", error=str(e))
+            
+            return {"error": f"Failed to get health for service {service_name}"}
+        
+        self.logger.info("Registered MCP tools", tools=[
+            "get_server_info", 
+            "search_traces", 
+            "search_logs", 
+            "get_service_health"
+        ])
     
     async def initialize_drivers(self) -> None:
         """Initialize backend drivers."""
@@ -137,8 +286,12 @@ class OTelQueryServer:
         
         if backends.elastic_cloud and backends.elastic_cloud.enabled:
             try:
-                # Driver will be imported when implemented
-                self.logger.info("Elastic Cloud driver not yet implemented")
+                from otel_query_server.drivers import DriverRegistry
+                driver_class = DriverRegistry.get("elastic_cloud")
+                driver = driver_class(backends.elastic_cloud)
+                await driver.initialize()
+                self.drivers["elastic_cloud"] = driver
+                self.logger.info("Initialized Elastic Cloud driver")
             except Exception as e:
                 self.logger.error("Failed to initialize Elastic Cloud driver", error=str(e))
         
@@ -230,6 +383,36 @@ async def main(config_path: Optional[str] = None) -> None:
         await server.stop()
 
 
+# Create a global MCP instance for FastMCP to use
+_server_instance = None
+
+def create_mcp() -> FastMCP:
+    """Create and return the MCP instance for FastMCP CLI."""
+    global _server_instance
+    
+    # Load config from environment or default locations
+    config_path = os.environ.get('OTEL_QUERY_CONFIG_FILE')
+    config = load_config(config_path)
+    
+    # Create server instance
+    _server_instance = OTelQueryServer(config)
+    
+    # Initialize drivers in the background
+    async def init_drivers():
+        await _server_instance.initialize_drivers()
+    
+    # Schedule driver initialization
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(init_drivers())
+    except RuntimeError:
+        # No running loop yet, FastMCP will handle it
+        pass
+    
+    return _server_instance.mcp
+
+
 if __name__ == "__main__":
     import argparse
     
@@ -241,5 +424,10 @@ if __name__ == "__main__":
     )
     
     args = parser.parse_args()
+    
+    # For direct execution, inform user to use FastMCP
+    print("Note: Direct execution may have issues with async event loop.")
+    print("Consider using: fastmcp run otel_query_server.server:create_mcp")
+    print()
     
     asyncio.run(main(args.config)) 

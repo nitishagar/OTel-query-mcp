@@ -1,0 +1,59 @@
+# OpenTelemetry Query Server Configuration for Elastic Cloud Testing
+server:
+  name: otel-query-server-elastic-test
+  version: 0.1.0
+  description: Testing with Enterprise Elastic Cloud
+  log_level: DEBUG  # Set to DEBUG for testing
+  max_concurrent_requests: 10
+
+# Cache Configuration
+cache:
+  enabled: true
+  max_size: 1000
+  ttl_seconds: 300
+  trace_ttl_seconds: 600
+  log_ttl_seconds: 300
+  metric_ttl_seconds: 60
+
+# Backend Configuration
+backends:
+  # Disable other backends for testing
+  otel_collector:
+    enabled: false
+    endpoint: "localhost:4317"  # Dummy value, not used when disabled
+    insecure: true
+  
+  grafana:
+    enabled: false
+    # Grafana doesn't require mandatory fields when disabled
+  
+  opensearch:
+    enabled: false
+    hosts:  # Required field even when disabled
+      - "https://localhost:9200"
+  
+  # Elastic Cloud Configuration
+  elastic_cloud:
+    enabled: true
+    # The Elasticsearch endpoint (remove the Kibana path)
+    elasticsearch_url: https://dcsites-non-prod-usw2.es.us-west-2.aws.found.io:9243
+    
+    # Authentication - Choose one of the following methods:
+    
+    # Option 1: API Key (Recommended)
+    api_key: "VnZRbkhKZ0JpSU11VnE4UFE3SWg6Ry1QVDNpTmFUZm1KMVk3UFVVLXo1dw=="
+    
+    # Option 2: Basic Auth
+    # username: "elastic"
+    # password: "YOUR_PASSWORD_HERE"
+    
+    # Connection settings
+    timeout_seconds: 30
+    verify_certs: true  # Set to false only if you have cert issues
+    
+    # Optional: If you need to specify the CA certificate
+    # ca_certs: "/path/to/ca.pem"
+    
+    # Optional: Additional headers if needed
+    # headers:
+    #   X-Custom-Header: value 

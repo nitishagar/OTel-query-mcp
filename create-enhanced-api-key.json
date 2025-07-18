@@ -1,0 +1,20 @@
+POST /_security/api_key
+{
+  "name": "otel-query-server-enhanced",
+  "role_descriptors": {
+    "otel_reader": {
+      "cluster": ["monitor", "read_ilm"],
+      "indices": [
+        {
+          "names": ["*"],
+          "privileges": ["read", "view_index_metadata", "monitor"]
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "application": "otel-query-server",
+    "environment": "testing",
+    "enhanced": true
+  }
+} 
