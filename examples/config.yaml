@@ -1,0 +1,74 @@
+# OpenTelemetry Query Server Configuration Example
+
+server:
+  name: otel-query-server
+  version: 0.1.0
+  description: MCP server for querying observability data
+  log_level: INFO
+  max_concurrent_requests: 10
+
+cache:
+  enabled: true
+  max_size: 1000
+  ttl_seconds: 300
+  trace_ttl_seconds: 600
+  log_ttl_seconds: 300
+  metric_ttl_seconds: 60
+
+backends:
+  # OpenTelemetry Collector Configuration
+  otel_collector:
+    enabled: true
+    endpoint: localhost:4317
+    insecure: true
+    timeout_seconds: 30
+    max_retries: 3
+    retry_delay_seconds: 1.0
+    headers:
+      # Add any custom headers here
+      # Authorization: Bearer <token>
+    compression: gzip
+
+  # Grafana Configuration
+  grafana:
+    enabled: false
+    tempo_url: http://localhost:3200
+    loki_url: http://localhost:3100
+    prometheus_url: http://localhost:9090
+    # api_key: your-grafana-api-key
+    # org_id: 1
+    timeout_seconds: 30
+    max_retries: 3
+
+  # Elastic Cloud Configuration
+  elastic_cloud:
+    enabled: false
+    # Option 1: Use Cloud ID
+    # cloud_id: your-deployment:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvOjQ0MyQ...
+    # Option 2: Use direct Elasticsearch URL
+    # elasticsearch_url: https://your-cluster.es.us-central1.gcp.cloud.es.io:9243
+    # username: elastic
+    # password: your-password
+    # OR use API key instead
+    # api_key: your-api-key
+    # apm_server_url: https://your-apm.apm.us-central1.gcp.cloud.es.io:443
+    timeout_seconds: 30
+    max_retries: 3
+
+  # OpenSearch Configuration
+  opensearch:
+    enabled: false
+    hosts:
+      - https://localhost:9200
+    username: admin
+    password: admin
+    verify_certs: false
+    # ca_certs: /path/to/ca.pem
+    timeout_seconds: 30
+    max_retries: 3
+
+# Environment variable overrides:
+# OTEL_QUERY_SERVER__LOG_LEVEL=DEBUG
+# OTEL_QUERY_CACHE__ENABLED=false
+# OTEL_QUERY_BACKENDS__OTEL_COLLECTOR__ENDPOINT=production:4317
+# OTEL_QUERY_BACKENDS__GRAFANA__API_KEY=secret-key 
