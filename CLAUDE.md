@@ -1,4 +1,4 @@
-# CLAUDE_CODE.md
+# CLAUDE.md
 
 ## MCP OpenTelemetry Query Server Development Guide
 
