@@ -272,8 +272,12 @@ class OTelQueryServer:
         
         if backends.otel_collector and backends.otel_collector.enabled:
             try:
-                # Driver will be imported when implemented
-                self.logger.info("OTEL Collector driver not yet implemented")
+                from otel_query_server.drivers import DriverRegistry
+                driver_class = DriverRegistry.get("otel_collector")
+                driver = driver_class(backends.otel_collector)
+                await driver.initialize()
+                self.drivers["otel_collector"] = driver
+                self.logger.info("Initialized OTEL Collector driver")
             except Exception as e:
                 self.logger.error("Failed to initialize OTEL Collector driver", error=str(e))
         

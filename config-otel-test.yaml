@@ -1,0 +1,48 @@
+# OpenTelemetry Query Server Configuration for OTEL Collector Testing
+server:
+  name: otel-query-server-collector-test
+  version: 0.1.0
+  description: Testing with OTEL Collector
+  log_level: DEBUG
+  max_concurrent_requests: 10
+
+# Cache Configuration
+cache:
+  enabled: true
+  max_size: 1000
+  ttl_seconds: 300
+  trace_ttl_seconds: 600
+  log_ttl_seconds: 300
+  metric_ttl_seconds: 60
+
+# Backend Configuration
+backends:
+  # OTEL Collector Configuration
+  otel_collector:
+    enabled: true
+    endpoint: localhost:4317  # Default OTEL Collector gRPC endpoint
+    insecure: true  # Set to false for production with TLS
+    timeout_seconds: 30
+    max_retries: 3
+    retry_delay_seconds: 1.0
+    
+    # Optional headers for authentication
+    # headers:
+    #   Authorization: Bearer <token>
+    
+    # Compression: none or gzip
+    compression: gzip
+  
+  # Disable other backends for testing
+  grafana:
+    enabled: false
+  
+  elastic_cloud:
+    enabled: false
+    elasticsearch_url: "https://localhost:9200"  # Dummy value
+    api_key: "dummy"
+  
+  opensearch:
+    enabled: false
+    hosts:
+      - "https://localhost:9200" 
