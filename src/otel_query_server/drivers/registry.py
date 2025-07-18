@@ -80,8 +80,8 @@ def auto_register_drivers(package_path: Path = None) -> List[str]:
     """
     if package_path is None:
         # Get the drivers package location
-        import otel_query_server.drivers
-        package_path = Path(otel_query_server.drivers.__file__).parent
+        from pathlib import Path as PathLib
+        package_path = PathLib(__file__).parent
     
     # Discover drivers
     discovered = discover_drivers(package_path)
