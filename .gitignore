@@ -161,4 +161,7 @@ config.local.yaml
 *.local.*
 logs/
 temp/
-cache/ 
+cache/
+
+# Virtual environment
+venv/ 
