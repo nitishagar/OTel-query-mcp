@@ -256,8 +256,36 @@ class OTelQueryServer:
             
             return {"error": f"Failed to get health for service {service_name}"}
         
+        @self.mcp.tool()
+        async def list_drivers() -> Dict[str, Any]:
+            """List all available backend drivers with their capabilities.
+            
+            Returns information about each registered driver including
+            supported backends, capabilities, and version.
+            """
+            from otel_query_server.drivers import DriverRegistry
+            
+            drivers_info = DriverRegistry.list_with_info()
+            
+            return {
+                "total_drivers": len(drivers_info),
+                "drivers": {
+                    name: {
+                        "display_name": info.display_name,
+                        "description": info.description,
+                        "version": info.version,
+                        "author": info.author,
+                        "supported_backends": info.supported_backends,
+                        "capabilities": info.capabilities,
+                        "enabled": name in self.drivers
+                    }
+                    for name, info in drivers_info.items()
+                }
+            }
+        
         self.logger.info("Registered MCP tools", tools=[
             "get_server_info", 
+            "list_drivers",
             "search_traces", 
             "search_logs", 
             "get_service_health"
