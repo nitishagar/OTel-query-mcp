@@ -1,7 +1,7 @@
 # OpenTelemetry Query Server
 
-[![CI](https://github.com/your-org/otel-query-server/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/otel-query-server/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/your-org/otel-query-server/branch/main/graph/badge.svg)](https://codecov.io/gh/your-org/otel-query-server)
+[![CI](https://github.com/nitishagar/OTel-query-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/nitishagar/OTel-query-mcp/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/nitishagar/OTel-query-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/nitishagar/OTel-query-mcp)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -23,8 +23,8 @@ An MCP (Model Context Protocol) server that provides tools for querying observab
 
 ```bash
 # From source
-git clone https://github.com/your-org/otel-query-server.git
-cd otel-query-server
+git clone https://github.com/nitishagar/OTel-query-mcp.git
+cd OTel-query-mcp
 pip install -e .
 
 # From PyPI (when published)
@@ -79,8 +79,8 @@ mcp-client connect stdio -- python -m otel_query_server.server
 
 ```bash
 # Clone and setup
-git clone https://github.com/your-org/otel-query-server.git
-cd otel-query-server
+git clone https://github.com/nitishagar/OTel-query-mcp.git
+cd OTel-query-mcp
 
 # Create virtual environment
 python -m venv venv
