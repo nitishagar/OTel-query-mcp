@@ -40,6 +40,14 @@ logger = structlog.get_logger(__name__)
 class ElasticCloudDriver(BaseDriver):
     """Driver for Elastic Cloud (Elasticsearch) backend."""
     
+    # Driver metadata
+    DRIVER_NAME = "elastic_cloud"
+    DISPLAY_NAME = "Elastic Cloud"
+    DESCRIPTION = "Query observability data from Elastic Cloud (Elasticsearch, APM, etc.)"
+    VERSION = "1.0.0"
+    AUTHOR = "OTEL Query Server Team"
+    SUPPORTED_BACKENDS = ["Elasticsearch", "Elastic APM", "Elastic Cloud"]
+    
     def __init__(self, config: ElasticCloudConfig) -> None:
         """Initialize the Elastic Cloud driver."""
         super().__init__(config)

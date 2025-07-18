@@ -47,6 +47,14 @@ logger = structlog.get_logger(__name__)
 class OTELCollectorDriver(BaseDriver):
     """Driver for OpenTelemetry Collector backend using OTLP gRPC."""
     
+    # Driver metadata
+    DRIVER_NAME = "otel_collector"
+    DISPLAY_NAME = "OpenTelemetry Collector"
+    DESCRIPTION = "Connect to OpenTelemetry Collector via OTLP gRPC protocol"
+    VERSION = "1.0.0"
+    AUTHOR = "OTEL Query Server Team"
+    SUPPORTED_BACKENDS = ["OpenTelemetry Collector", "OTLP", "Jaeger", "Prometheus", "Loki"]
+    
     def __init__(self, config: OTELCollectorConfig) -> None:
         """Initialize the OTEL Collector driver."""
         super().__init__(config)
