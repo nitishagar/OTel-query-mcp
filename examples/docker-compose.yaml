@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "55679:55679" # ZPages extension
+    networks:
+      - otel-network
+
+  # Grafana Tempo for traces
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "4317"        # OTLP gRPC receiver
+    networks:
+      - otel-network
+
+  # Grafana Loki for logs
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    ports:
+      - "3100:3100"   # Loki HTTP API
+    networks:
+      - otel-network
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./prometheus-config.yaml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"   # Prometheus HTTP API
+    networks:
+      - otel-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./dashboards:/var/lib/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"   # Grafana UI
+    networks:
+      - otel-network
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
+  # Elasticsearch (alternative to Grafana stack)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"   # Elasticsearch HTTP API
+      - "9300:9300"   # Elasticsearch TCP transport
+    networks:
+      - otel-network
+    profiles:
+      - elastic
+
+  # Kibana for Elasticsearch visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"   # Kibana UI
+    networks:
+      - otel-network
+    depends_on:
+      - elasticsearch
+    profiles:
+      - elastic
+
+  # OpenSearch (alternative to Elasticsearch)
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9201:9200"   # OpenSearch HTTP API (different port to avoid conflict)
+      - "9600:9600"   # Performance analyzer
+    networks:
+      - otel-network
+    profiles:
+      - opensearch
+
+  # OpenSearch Dashboards
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5602:5601"   # OpenSearch Dashboards UI (different port to avoid conflict)
+    networks:
+      - otel-network
+    depends_on:
+      - opensearch
+    profiles:
+      - opensearch
+
+  # MCP Server (our application)
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: mcp-server
+    environment:
+      - OTEL_QUERY_SERVER__LOG_LEVEL=DEBUG
+      - OTEL_QUERY_BACKENDS__OTEL_COLLECTOR__ENDPOINT=otel-collector:4317
+      - OTEL_QUERY_BACKENDS__OTEL_COLLECTOR__INSECURE=true
+      - OTEL_QUERY_BACKENDS__GRAFANA__TEMPO_URL=http://tempo:3200
+      - OTEL_QUERY_BACKENDS__GRAFANA__LOKI_URL=http://loki:3100
+      - OTEL_QUERY_BACKENDS__GRAFANA__PROMETHEUS_URL=http://prometheus:9090
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ../src:/app/src  # For development hot-reload
+    ports:
+      - "8080:8080"   # MCP HTTP transport (if enabled)
+    networks:
+      - otel-network
+    depends_on:
+      - otel-collector
+      - tempo
+      - loki
+      - prometheus
+    profiles:
+      - mcp
+
+volumes:
+  tempo-data:
+  loki-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+  opensearch-data:
+
+networks:
+  otel-network:
+    driver: bridge 

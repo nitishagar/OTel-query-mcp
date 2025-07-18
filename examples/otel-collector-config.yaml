@@ -1,0 +1,132 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:*"
+            - "http://127.0.0.1:*"
+
+  # Generate synthetic data for testing
+  synthetic:
+    traces:
+      enabled: true
+      service_names:
+        - "frontend"
+        - "api-gateway"
+        - "auth-service"
+        - "payment-service"
+        - "inventory-service"
+      operations:
+        - "GET /api/v1/users"
+        - "POST /api/v1/orders"
+        - "GET /api/v1/products"
+        - "POST /api/v1/auth/login"
+      error_rate: 0.1
+      latency_ms:
+        min: 10
+        max: 500
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  resource:
+    attributes:
+      - key: environment
+        value: development
+        action: upsert
+      - key: collector.name
+        value: otel-collector-local
+        action: upsert
+
+  attributes:
+    actions:
+      - key: http.user_agent
+        action: delete
+      - key: http.request.header.authorization
+        action: delete
+
+exporters:
+  # Export to stdout for debugging
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # Export to Tempo
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Export to Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: otel
+    const_labels:
+      environment: development
+
+  # Export to Loki (via OTLP)
+  otlp/loki:
+    endpoint: loki:4317
+    tls:
+      insecure: true
+
+  # In-memory storage for queries
+  memory:
+    max_storage_size: 100MiB
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /health
+    
+  pprof:
+    endpoint: 0.0.0.0:1777
+    
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    traces:
+      receivers: [otlp, synthetic]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [logging, otlp/tempo, memory]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging, prometheus, memory]
+    
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [logging, otlp/loki, memory]
+
+  telemetry:
+    logs:
+      level: info
+      development: true
+      encoding: console
+      
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888 
